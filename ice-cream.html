@@ -1,0 +1,53 @@
+
+<html>
+  <head>
+    <title>Ice Cream</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />
+    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+    <py-env>
+      - pandas
+      - matplotlib
+    </py-env>
+    </head>
+    <body>
+      <div id="input" style="margin: 20px;">
+        <input type="checkbox" id="peanut" name="peanut" value="peanut">
+        <label for="peanut"> No peanut please</label>
+      </div>
+      <div id="viz"></div>
+      <py-script output="viz">
+import pandas as pd
+
+import matplotlib.pyplot as plt
+plt.rcParams["figure.figsize"] = (20,30)
+
+from pyodide.http import open_url
+from pyodide import create_proxy
+
+url = (
+    "https://raw.githubusercontent.com/Cheukting/pyscript-ice-cream/main/bj-products.csv"
+)
+ice_data = pd.read_csv(open_url(url))
+current_df = ice_data.copy()
+
+def plot(data):
+    fig, ax = plt.subplots()
+    data.plot.barh(x="name", y="rating", ax=ax)
+    pyscript.write("viz",fig)
+
+def no_peanut(event):
+    if document.getElementById("peanut").checked:
+        filter = ice_data.apply(lambda x: "PEANUT" not in x["ingredients"], axis=1)
+        plot(ice_data[filter])
+    else:
+        plot(ice_data)
+
+peanut_proxy = create_proxy(no_peanut)
+peanut_ele = document.getElementById("peanut")
+peanut_ele.addEventListener("change", peanut_proxy)
+
+plot(ice_data)
+      </py-script>
+    </body>
+</html>
