@@ -46,7 +46,7 @@ from pyodide import create_proxy, to_js
 url = (
     "https://raw.githubusercontent.com/Cheukting/pyscript-ice-cream/main/bj-products.csv"
 )
-ice_data = pd.read_csv(open_url(url))
+ice_data = pd.read_csv(open_url(url)).sort_values(by=["rating"], ascending=False)
 current_selected = []
 flavour_elements = document.getElementsByName("flavour")
 
@@ -55,7 +55,7 @@ viz.select(".loading").remove()
 
 margin = {"top": 30, "right": 30, "bottom": 70, "left": 260}
 width = 1000 - margin["left"] - margin["right"]
-max_height = 1000 - margin["top"] - margin["bottom"]
+max_height = 1200 - margin["top"] - margin["bottom"]
 
 svg = (viz
   .append("svg")
@@ -73,7 +73,7 @@ y = d3.scaleBand()
 yAxis = svg.append("g").call(d3.axisLeft(y))
 
 def plot(data):
-    data_js = to_js(data.to_dict(orient='records'))
+    data_js = to_js(data.to_dict(orient="records"))
     height = data["name"].count() * 100 - margin["top"] - margin["bottom"]
     if height > max_height:
         height = max_height
@@ -92,7 +92,6 @@ def plot(data):
     yAxis.transition().duration(1000).call(d3.axisLeft(y))
 
     # bars
-
     y_fn = create_proxy(lambda record, *_:y(record["name"]))
     x_fn = create_proxy(lambda record, *_:x(record["rating"]))
     u = svg.selectAll("rect").data(data_js)
@@ -110,6 +109,35 @@ def plot(data):
       .attr("fill", "#69b3a2")
     )
     u.exit().remove()
+
+    # label
+
+    label_fn = create_proxy(lambda record, *_:record["rating"])
+    labels = svg.selectAll(".label").remove()
+    l = svg.selectAll(".text").data(data_js)
+
+    (
+  	  l.enter()
+  	  .append("text")
+      .merge(l)
+      .transition()
+      .duration(1000)
+  	  .attr("class","label")
+  	  .attr("x", x_fn)
+  	  .attr("y", y_fn)
+  	  .attr("dy", "1.5em")
+  	  .text(label_fn)
+    )
+    l.exit().remove()
+
+    (
+    svg.append("text")
+        .attr("x", (width / 2))
+        .attr("y", 0 - (margin["top"] / 2))
+        .attr("text-anchor", "middle")
+        .style("font-size", "16px")
+        .text("⭐ Ice cream flavour ratings ⭐")
+    )
 
 def select_flavour(event):
     for ele in flavour_elements:
