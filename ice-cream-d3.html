@@ -54,33 +54,41 @@ viz = d3.select("#viz")
 viz.select(".loading").remove()
 
 margin = {"top": 30, "right": 30, "bottom": 70, "left": 260}
-width = 460 - margin["left"] - margin["right"]
-height = 400 - margin["top"] - margin["bottom"]
+width = 1000 - margin["left"] - margin["right"]
+max_height = 1000 - margin["top"] - margin["bottom"]
 
 svg = (viz
   .append("svg")
     .attr("width", width + margin["left"] + margin["right"])
-    .attr("height", height + margin["top"] + margin["bottom"])
+    .attr("height", max_height + margin["top"] + margin["bottom"])
   .append("g")
     .attr("transform",
           f"translate({margin['left']},{margin['top']})")
   )
 
 x = d3.scaleLinear().domain([0, 5]).range([0, width])
-(
-svg.append("g")
-  .attr("transform", f"translate(0,{height})")
-  .call(d3.axisBottom(x))
-)
+xAxis = svg.append("g").call(d3.axisBottom(x))
 
-y = d3.scaleBand().range([0, height])
+y = d3.scaleBand()
 yAxis = svg.append("g").call(d3.axisLeft(y))
 
 def plot(data):
     data_js = to_js(data.to_dict(orient='records'))
+    height = data["name"].count() * 100 - margin["top"] - margin["bottom"]
+    if height > max_height:
+        height = max_height
+
+    (
+    svg.transition().duration(1000)
+      .attr("width", width + margin["left"] + margin["right"])
+      .attr("height", height + margin["top"] + margin["bottom"])
+    )
+
+    # x-axis
+    xAxis.transition().duration(1000).attr("transform", f"translate(0,{height})").call(d3.axisBottom(x))
 
     # y-axis
-    y.domain(list(data["name"])).padding(.1)
+    y.domain(list(data["name"])).range([0, height]).padding(.1)
     yAxis.transition().duration(1000).call(d3.axisLeft(y))
 
     # bars
