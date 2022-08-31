@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+  <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <title>reveal.js</title>
+
+  <link rel="stylesheet" href="dist/reset.css">
+  <link rel="stylesheet" href="dist/reveal.css">
+  <link rel="stylesheet" href="dist/theme/simple.css">
+
+  <!-- Theme used for syntax highlighted code -->
+  <link rel="stylesheet" href="plugin/highlight/monokai.css">
+
+    <link rel="stylesheet" href="https://pyscript.net/alpha/pyscript_base.css" />
+  </head>
+  <body>
+  <div class="reveal">
+  <div class="slides">
+  <section>
+  <h2><b>pyscript REPL</b></h2>
+       Tip: press Shift-ENTER to evaluate a cell
+       <br>
+       <div>
+         <py-repl id="my-repl"> </py-repl>
+       </div>
+  </section>
+  <section>
+    <div id="input" style="margin: 20px;">
+      Select your 🍨 flavour: <br/>
+      <input type="radio" id="all" name="flavour" value="ALL">
+      <label for="all"> All 🍧</label>
+      <input type="radio" id="chocolate" name="flavour" value="COCOA">
+      <label for="chocolate"> Chocolate 🍫</label>
+      <input type="radio" id="cherrie" name="flavour" value="CHERRIES">
+      <label for="cherrie"> Cherries 🍒</label>
+      <input type="radio" id="berries" name="flavour" value="BERRY">
+      <label for="berries"> Berries 🍓</label>
+      <br/>
+      <input type="radio" id="cheese" name="flavour" value="CHEESE">
+      <label for="cheese"> Cheese 🧀</label>
+      <input type="radio" id="peanut" name="flavour" value="PEANUT">
+      <label for="peanut"> Peanut 🥜</label>
+    </div>
+  </section>
+  <section>
+    <div id="viz"></div>
+  </section>
+  </div>
+  </div>
+
+  <script src="dist/reveal.js"></script>
+  <script src="plugin/notes/notes.js"></script>
+  <script src="plugin/markdown/markdown.js"></script>
+  <script src="plugin/highlight/highlight.js"></script>
+  <script>
+  // More info about initialization & config:
+  // - https://revealjs.com/initialization/
+  // - https://revealjs.com/config/
+  Reveal.initialize({
+  hash: true,
+
+  // Learn about plugins: https://revealjs.com/plugins/
+  plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+  });
+  </script>
+  <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+  <py-env>
+    - pandas
+    - matplotlib
+  </py-env>
+  <script type="importmap">
+  {
+    "imports": {
+      "d3": "https://cdn.skypack.dev/d3@7"
+    }
+  }
+  </script>
+  <py-script output="viz">
+  import pandas as pd
+
+  import d3
+
+  from pyodide.http import open_url
+  from pyodide import create_proxy, to_js
+
+  url = (
+      "https://raw.githubusercontent.com/Cheukting/pyscript-ice-cream/main/bj-products.csv"
+  )
+  ice_data = pd.read_csv(open_url(url)).sort_values(by=["rating"], ascending=False)
+  current_selected = []
+  flavour_elements = document.getElementsByName("flavour")
+
+  viz = d3.select("#viz")
+  viz.select(".loading").remove()
+
+  margin = {"top": 30, "right": 30, "bottom": 70, "left": 260}
+  width = 1000 - margin["left"] - margin["right"]
+  max_height = 800 - margin["top"] - margin["bottom"]
+
+  svg = (viz
+    .append("svg")
+      .attr("width", width + margin["left"] + margin["right"])
+      .attr("height", max_height + margin["top"] + margin["bottom"])
+    .append("g")
+      .attr("transform",
+            f"translate({margin['left']},{margin['top']})")
+    )
+
+  x = d3.scaleLinear().domain([0, 5]).range([0, width])
+  xAxis = svg.append("g").call(d3.axisBottom(x))
+
+  y = d3.scaleBand()
+  yAxis = svg.append("g").call(d3.axisLeft(y))
+
+  def plot(data):
+      data_js = to_js(data.to_dict(orient="records"))
+      height = data["name"].count() * 100 - margin["top"] - margin["bottom"]
+      if height > max_height:
+          height = max_height
+
+      (
+      svg.transition().duration(1000)
+        .attr("width", width + margin["left"] + margin["right"])
+        .attr("height", height + margin["top"] + margin["bottom"])
+      )
+
+      # x-axis
+      xAxis.transition().duration(1000).attr("transform", f"translate(0,{height})").call(d3.axisBottom(x))
+
+      # y-axis
+      y.domain(list(data["name"])).range([0, height]).padding(.1)
+      yAxis.transition().duration(1000).call(d3.axisLeft(y))
+
+      # bars
+      y_fn = create_proxy(lambda record, *_:y(record["name"]))
+      x_fn = create_proxy(lambda record, *_:x(record["rating"]))
+      u = svg.selectAll("rect").data(data_js)
+
+      (
+        u.enter()
+        .append("rect")
+        .merge(u)
+        .transition()
+        .duration(1000)
+        .attr("x", x(0) )
+        .attr("y", y_fn)
+        .attr("width", x_fn)
+        .attr("height", y.bandwidth() )
+        .attr("fill", "#69b3a2")
+      )
+      u.exit().remove()
+
+      # label
+
+      label_fn = create_proxy(lambda record, *_:record["rating"])
+      labels = svg.selectAll(".viz_label").remove()
+      l = svg.selectAll(".text").data(data_js)
+
+      (
+    	  l.enter()
+    	  .append("text")
+        .merge(l)
+        .transition()
+        .duration(1000)
+    	  .attr("class","viz_label")
+    	  .attr("x", x_fn)
+    	  .attr("y", y_fn)
+        .attr("dy", "1.5em")
+        .style("font", "12px times")
+    	  .text(label_fn)
+      )
+      l.exit().remove()
+
+      (
+      svg.append("text")
+          .attr("x", (width / 2))
+          .attr("y", 0 - (margin["top"] / 2))
+          .attr("text-anchor", "middle")
+          .style("font-size", "16px")
+          .text("⭐ Ice cream flavour ratings ⭐")
+      )
+
+  def select_flavour(event):
+      for ele in flavour_elements:
+          if ele.checked:
+              current_selected = ele.value
+              break
+      if current_selected == "ALL":
+          plot(ice_data)
+      else:
+          filter = ice_data.apply(lambda x: ele.value in x["ingredients"], axis=1)
+          plot(ice_data[filter])
+
+  ele_proxy = create_proxy(select_flavour)
+
+  for ele in flavour_elements:
+      if ele.value == "ALL":
+        ele.checked = True
+        current_selected = ele.value
+      ele.addEventListener("change", ele_proxy)
+
+  plot(ice_data)
+  </py-script>
+  </body>
+</html>
